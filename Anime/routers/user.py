@@ -30,6 +30,9 @@ class User(BaseModel):
     last_name: str
     hashed_password: str
 
+    class Config:
+        orm_mode = True
+
 
 @router.post('/create-user')
 def create_user(user: User, db: Session = Depends(get_db)):

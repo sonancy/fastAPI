@@ -23,6 +23,9 @@ def get_db():
 class Genre(BaseModel):
     name: str
 
+    class Config:
+        orm_mode = True
+
 
 @router.get('/')
 async def get_all_genre(db: Session = Depends(get_db)):

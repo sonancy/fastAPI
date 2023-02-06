@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends
+from fastapi.staticfiles import StaticFiles
+from PIL import Image
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from database import engine, SessionLocal
@@ -12,6 +14,8 @@ router = APIRouter(
     tags=["Anime"],
     responses={404: {"detail": "Anime not found!"}}
 )
+
+router.mount("/static", StaticFiles(directory="static"), name="static")
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -29,8 +33,9 @@ class Anime(BaseModel):
     episodes: int = Field(default=1)
     status: str = Field(default="Ongoing")
     duration: str = Field(default="24 min per episode")
-    ratings: float = Field(gt=-1, lt=11)
+    ratings: float = Field(ge=0, le=10)
     # photo = ImageField(upload_to='anime')
+    genre_id: str
     description: Optional[str]
 
     class Config:
@@ -45,20 +50,17 @@ class Anime(BaseModel):
                 'description': 'Optional'
             }
         }
+        orm_mode = True
 
 
 @router.get("/")
-async def get_all_anime(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not user:
-        raise get_user_exception()
-    return db.query(models.Anime).filter(models.Anime.user_id == user.get("id")).all()
+async def get_all_anime(search: Optional[str] = '', db: Session = Depends(get_db)):
+    return db.query(models.Anime).filter(models.Anime.title.contains(search)).all()
 
 
 @router.get("/{id}")
-async def get_anime_by_id(id: str, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not user:
-        raise get_user_exception()
-    anime_model = db.query(models.Anime).filter(models.Anime.user_id == user.get("id")).filter(models.Anime.id == id).first()
+async def get_anime_by_id(id: str, db: Session = Depends(get_db)):
+    anime_model = db.query(models.Anime).filter(models.Anime.id == id).first()
     if anime_model is None:
         raise raise_404_exception('Anime')
     return anime_model
@@ -75,7 +77,7 @@ async def create_anime(anime: Anime, user: dict = Depends(get_current_user), db:
     anime_model.description = anime.description
     anime_model.duration = anime.duration
     anime_model.ratings = anime.ratings
-    anime_model.genre_id = 1
+    anime_model.genre_id = anime.genre_id
     anime_model.user_id = user.get("id")
     db.add(anime_model)
     db.commit()
@@ -94,7 +96,7 @@ async def update_anime(id: str, anime: Anime, user: dict = Depends(get_current_u
     anime_model.description = anime.description
     anime_model.duration = anime.duration
     anime_model.ratings = anime.ratings
-    anime_model.genre_id = 1
+    anime_model.genre_id = anime.genre_id
     db.add(anime_model)
     db.commit()
     return success_message(200)
